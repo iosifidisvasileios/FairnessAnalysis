@@ -1,5 +1,6 @@
 package DistanceNetworkGenerator;
 
+import FiltersToCompare.MyMassagingFilter;
 import FiltersToCompare.MyPrefrentialSamplingFilter;
 import org.apache.log4j.Logger;
 import weka.core.EuclideanDistance;
@@ -40,6 +41,9 @@ public class GenerateNetwork {
 //
         final String parameters = "adult-gender";
         final String classifier = "NB";
+//        final String preprocessing= "Original";
+//        final String preprocessing= "massaging";
+        final String preprocessing= "sampling";
 
         BufferedReader reader = null;
         if (parameters.equals("adult-gender")) {
@@ -81,42 +85,42 @@ public class GenerateNetwork {
 
         int nearestNeighbor = 10;
 
-        Filter.filterFile(new MyPrefrentialSamplingFilter(protectedValueName, protectedValueIndex),
-                new String[]{"-i", "Datasets/adult.arff",
-                        "-o", "Datasets/temp_pref_baselines.arff", "-c", "last"});
-
-//                Filter.filterFile(new MyMassagingFilter(protectedValueName, protectedValueIndex),
-//                new String[]{"-i", "Datasets/adult.arff",
-//                        "-o", "Datasets/temp_pref_baselines.arff", "-c", "last"});
-//
-
-        reader = new BufferedReader(new FileReader("Datasets/temp_pref_baselines.arff"));
         Instances data = new Instances(reader);
         reader.close();
 
-        BufferedWriter writerNode = new BufferedWriter(new FileWriter("Datasets/DistanceNetwork " + parameters +"_node.csv"));
+
+        if (preprocessing.equals("sampling")) {
+            Filter.filterFile(new MyPrefrentialSamplingFilter(protectedValueName, protectedValueIndex),
+                    new String[]{"-i", "Datasets/adult.arff","-o", "Datasets/temp_preprocess.arff", "-c", "last"});
+            reader = new BufferedReader(new FileReader("Datasets/temp_preprocess.arff"));
+            data = new Instances(reader);
+            reader.close();
+        }else if (preprocessing.equals("massaging")) {
+            Filter.filterFile(new MyMassagingFilter(protectedValueName, protectedValueIndex),
+                    new String[]{"-i", "Datasets/adult.arff", "-o", "Datasets/temp_preprocess.arff", "-c", "last"});
+            reader = new BufferedReader(new FileReader("Datasets/temp_preprocess.arff"));
+            data = new Instances(reader);
+            reader.close();
+        }
+
+        BufferedWriter writerNode = new BufferedWriter(new FileWriter("Datasets/DistanceNetwork_" + parameters +"_" + preprocessing +"_node.csv"));
         writerNode.write("Id,Category\n");
 
-        BufferedWriter writerEdge = new BufferedWriter(new FileWriter("Datasets/DistanceNetwork " + parameters +"_edge.csv"));
+        BufferedWriter writerEdge = new BufferedWriter(new FileWriter("Datasets/DistanceNetwork_" + parameters +"_" + preprocessing +"_edge.csv"));
         writerEdge.write("Source,Target,Weight\n");
 
         EuclideanDistance m1_distanceFunction = new EuclideanDistance(data);
-        ArrayList<Double> bufferList = new ArrayList<>();
-//        for(int i = 0; i < 1000; i++){
-        for(int i = 0; i < data.size(); i++){
-            if(parameters.equals("propublica")) {
-                if (data.get(i).stringValue(protectedValueIndex).equals(protectedValueName)) {
-                    writerNode.write(i + "," + "white_" + data.get(i).stringValue(data.numAttributes() - 1) + "\n");
-                } else {
-                    writerNode.write(i + "," + "black_" + data.get(i).stringValue(data.numAttributes() - 1) + "\n");
-                }
-            }else{
-                writerNode.write(i +"," + data.get(i).stringValue(protectedValueIndex) + "_"+ data.get(i).stringValue(data.numAttributes()- 1) + "\n");
-            }
 
-            String output = "";
-            for(int j =0 ; j < data.size(); j++) {
-//            for(int j =0 ; j < 1000; j++) {
+        if (parameters.startsWith("adult"))
+            m1_distanceFunction.setAttributeIndices("1-13");
+
+
+        ArrayList<Double> bufferList = new ArrayList<>();
+
+        for(int i = 0; i < data.size(); i++){
+            writerNode.write(i +"," + data.get(i).stringValue(protectedValueIndex) + "_"+ data.get(i).stringValue(data.numAttributes()- 1) + "\n");
+
+            for(int j = 0; j < data.size(); j++) {
                 if(j==i)
                     continue;
                 double dist = m1_distanceFunction.distance(data.get(i), data.get(j));
@@ -124,9 +128,9 @@ public class GenerateNetwork {
             }
 
             int[] indeces = getLowest(bufferList, nearestNeighbor);
-            for (int index = 0; index< nearestNeighbor; index++ ){
-                writerEdge.write(i + "," + indeces[index] + "," + bufferList.get(indeces[index])+ "\n");
 
+            for (int index = 0; index < nearestNeighbor; index++ ){
+                writerEdge.write(i + "," + indeces[index] + "," + bufferList.get(indeces[index])+ "\n");
             }
 
 
