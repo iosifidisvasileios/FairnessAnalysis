@@ -7,6 +7,8 @@ import FiltersToCompare.PrefRew;
 import org.apache.commons.io.FileUtils;
 import org.apache.log4j.Logger;
 import org.tools4j.meanvar.MeanVarianceSlidingWindow;
+import weka.classifiers.bayes.NaiveBayes;
+import weka.classifiers.functions.Logistic;
 import weka.core.Instances;
 import weka.filters.Filter;
 
@@ -15,8 +17,7 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.Random;
 
-import static FiltersToCompare.LibraryForMyFunctions.evaluate_pre_existing_methods;
-import static FiltersToCompare.LibraryForMyFunctions.evaluate_pre_existing_methodsWeighted;
+import static FiltersToCompare.LibraryForMyFunctions.*;
 import static java.lang.System.exit;
 
 
@@ -40,7 +41,7 @@ public class PreprocessingClassification {
 
 
         final int folds = 10;
-        final int iterations = 1;
+        final int iterations = 3;
 
         BufferedReader reader = null;
         if (parameters.equals("adult-gender")) {
@@ -157,6 +158,14 @@ public class PreprocessingClassification {
                         "Reweighting"
                 ));
 
+                MyLogistic modifiedLR = new MyLogistic();
+                baseline.add(exportDiscrimination(modifiedLR,"modifiedLR",test,protectedValueIndex,protectedValueName,targetClass,otherClass,train));
+
+                Logistic LR = new Logistic();
+                massaging.add(exportDiscrimination(LR,"LR",test,protectedValueIndex,protectedValueName,targetClass,otherClass,train));
+                NaiveBayes Nb = new NaiveBayes();
+                preferential.add(exportDiscrimination(Nb,"NB",test,protectedValueIndex,protectedValueName,targetClass,otherClass,train));
+
             }
         }
 
@@ -166,11 +175,11 @@ public class PreprocessingClassification {
         generateStatistics("reweighting", reweighting,iterations *folds);
 
         FileUtils.deleteDirectory(new File(outfile));
+
     }
 
 
-
-    public static void generateStatistics(String method, ArrayList<HashMap<String, Double>> mapper, int window) {
+    private static void generateStatistics(String method, ArrayList<HashMap<String, Double>> mapper, int window) {
 
         final MeanVarianceSlidingWindow stdAcc = new MeanVarianceSlidingWindow(window);
         final MeanVarianceSlidingWindow stdROC = new MeanVarianceSlidingWindow(window);
@@ -218,5 +227,6 @@ public class PreprocessingClassification {
         writer.close();
 
     }
+
 
 }
